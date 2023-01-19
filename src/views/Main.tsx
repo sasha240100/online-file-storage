@@ -12,10 +12,13 @@ import InputBase from "@mui/material/InputBase";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import moment from "moment";
+import {useSessionStorage} from 'react-use';
 
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import client from "../client";
 import { Card, CardMedia, CardContent, CardActions, Grid } from "@mui/material";
+
+import { LoginModal } from "./LoginModal";
 
 const Search = styled("div")(({ theme }) => ({
   position: "relative",
@@ -59,7 +62,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
-export function AppHeader({ onFileUpload, isUploading, onSearch }) {
+export function AppHeader({ onFileUpload, isUploading, onSearch, user, onLogout }) {
   return (
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="static">
@@ -97,12 +100,18 @@ export function AppHeader({ onFileUpload, isUploading, onSearch }) {
               <StyledInputBase
                 placeholder="Search…"
                 inputProps={{ "aria-label": "search" }}
-                onChange={e => onSearch(e.target.value)}
+                onChange={(e) => onSearch(e.target.value)}
               />
             </Search>
           </Stack>
           <div style={{ flexGrow: 1 }} />
-          <Button color="inherit">Login</Button>
+          {user ? (
+            <Button color="inherit" onClick={onLogout}>
+              Logout
+            </Button>
+          ) : (
+            <Button color="inherit">Login</Button>
+          )}
         </Toolbar>
       </AppBar>
     </Box>
@@ -154,19 +163,25 @@ function FilePreview({ _id: id, url, name, hash, createdAt, onDeleteFile }) {
   );
 }
 
-function FilesList({ files, onDeleteFile }) {
+function FilesList({ files, onDeleteFile, user }) {
   return (
     <Grid container sx={{ padding: 4 }} spacing={3}>
-      {files.map((file) => (
-        <Grid key={file._id} item xs={2.5}>
-          <FilePreview {...file} onDeleteFile={onDeleteFile} />
-        </Grid>
-      ))}
+      {user &&
+        files.map((file) => (
+          <Grid key={file._id} item xs={2.5}>
+            <FilePreview {...file} onDeleteFile={onDeleteFile} />
+          </Grid>
+        ))}
+      {!user && (
+        <Typography variant='h5' component='h5' sx={{margin: '0 auto', mt: 15}}>You need to log in to see pictures</Typography>
+      )}
     </Grid>
   );
 }
 
 export default function Main() {
+  const [user, setUser] = useSessionStorage("currentUser", null);
+
   const [searchQuery, setSearchQuery] = useState('')
   const queryClient = useQueryClient();
 
@@ -213,8 +228,11 @@ export default function Main() {
         isUploading={isUploading}
         onFileUpload={handleFileUpload}
         onSearch={setSearchQuery}
+        user={user}
+        onLogout={() => setUser(null)}
       />
-      <FilesList loading={isLoading} files={files} onDeleteFile={deleteFile} />
+      <FilesList loading={isLoading} files={files} user={user} onDeleteFile={deleteFile} />
+      <LoginModal open={!user} onLogin={(userData) => setUser(userData)} />
     </>
   );
 }

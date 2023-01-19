@@ -8,6 +8,8 @@ router.delete("/file/:id", async (req, res) => {
 
   const file = await File.findOne({ _id: fileId });
 
+  if (!file) return
+
   await File.deleteOne({ _id: fileId });
 
   const params = {

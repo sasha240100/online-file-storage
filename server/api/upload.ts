@@ -20,6 +20,8 @@ async function uploadFile(file) {
 }
 
 router.post("/upload", async (req, res) => {
+  if (!req.files) return null
+
   const fileData = req.files.file;
   // the file when inserted from form-data comes in req.files.file
   const {
