@@ -2,13 +2,17 @@ import mongoose from 'mongoose';
 import { File, s3 } from "../db";
 
 import router from './router'
+import {authMiddleware} from './middleware/auth';
 
-router.delete("/file/:id", async (req, res) => {
+router.delete("/file/:id", authMiddleware, async (req, res) => {
   const fileId = new mongoose.Types.ObjectId(req.params.id);
 
   const file = await File.findOne({ _id: fileId });
 
-  if (!file) return
+  if (!file) {
+    res.status(200);
+    return
+  }
 
   await File.deleteOne({ _id: fileId });
 
@@ -18,8 +22,10 @@ router.delete("/file/:id", async (req, res) => {
   };
 
   try {
-    await s3.deleteObject(params).promise();
-  } catch {}
+    // s3.deleteObject(params).promise();
+  } catch {
+    // ...
+  }
 
   // returning fileupload location
   return res.status(200);

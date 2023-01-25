@@ -1,8 +1,9 @@
 import express from "express";
 import mongoose from "mongoose";
 import upload from "express-fileupload";
-import * as AWS from "aws-sdk";
 require("dotenv").config();
+
+import {User} from './db'
 
 import apiRouter from './api'
 
@@ -24,4 +25,8 @@ async function main() {
   console.log(`server started at PORT: ${PORT}`);
 
   await mongoose.connect(process.env.DB_URI);
+
+  // Create admin if doesn't exist
+  await User.findOneAndUpdate({username: 'admin'}, {username: 'admin', password: 'admin'}, {upsert: true})
 }
+

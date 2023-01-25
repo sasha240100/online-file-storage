@@ -14,8 +14,19 @@ const fileSchema = new mongoose.Schema(
     hash: String,
     key: String,
     mimeType: String,
+    userId: mongoose.Types.ObjectId,
   },
   { timestamps: true }
 );
 
 export const File = mongoose.model("File", fileSchema);
+
+const userSchema = new mongoose.Schema(
+  {
+    username: String,
+    password: String,
+  },
+  { timestamps: true }
+);
+
+export const User = mongoose.model("User", userSchema);

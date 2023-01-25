@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { styled, alpha } from "@mui/material/styles";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
@@ -12,7 +12,7 @@ import InputBase from "@mui/material/InputBase";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import moment from "moment";
-import {useSessionStorage} from 'react-use';
+import { useSessionStorage } from "react-use";
 
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import client from "../client";
@@ -62,7 +62,14 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
-export function AppHeader({ onFileUpload, isUploading, onSearch, user, onLogout }) {
+export function AppHeader({
+  onFileUpload,
+  isUploading,
+  onSearch,
+  userToken,
+  onLogout,
+  username,
+}) {
   return (
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="static">
@@ -105,10 +112,15 @@ export function AppHeader({ onFileUpload, isUploading, onSearch, user, onLogout 
             </Search>
           </Stack>
           <div style={{ flexGrow: 1 }} />
-          {user ? (
-            <Button color="inherit" onClick={onLogout}>
-              Logout
-            </Button>
+          {userToken ? (
+            <Stack direction="row" alignItems="center" spacing={3}>
+              <Typography color="lightgreen">
+                (logged in as <b>{username}</b>)
+              </Typography>
+              <Button color="inherit" onClick={onLogout}>
+                Logout
+              </Button>
+            </Stack>
           ) : (
             <Button color="inherit">Login</Button>
           )}
@@ -146,7 +158,9 @@ function FilePreview({ _id: id, url, name, hash, createdAt, onDeleteFile }) {
         <Button
           variant="outlined"
           size="small"
-          onClick={() => window.open('http://localhost:4040/api/preview/' + hash)}
+          onClick={() =>
+            window.open("http://localhost:4040/api/preview/" + hash)
+          }
         >
           Preview
         </Button>
@@ -163,48 +177,109 @@ function FilePreview({ _id: id, url, name, hash, createdAt, onDeleteFile }) {
   );
 }
 
-function FilesList({ files, onDeleteFile, user }) {
+function FilesList({ files, onDeleteFile, isAuthorized }) {
+  const lastFileUploadedAt = files?.sort((a, b) => a.createdAt > b.createdAt)[0]
+    ?.createdAt;
+
   return (
-    <Grid container sx={{ padding: 4 }} spacing={3}>
-      {user &&
-        files.map((file) => (
-          <Grid key={file._id} item xs={2.5}>
-            <FilePreview {...file} onDeleteFile={onDeleteFile} />
+    <>
+      {isAuthorized && files?.length > 0 && (
+        <Stack>
+          <Typography
+            fontSize={16}
+            variant="h6"
+            component="h6"
+            sx={{ px: 4, pt: 2 }}
+          >
+            Found files: <b>{files.length}</b> {' | '}
+            Last file uploaded at{" "}
+            <b>{moment(lastFileUploadedAt).format("DD MMM YYYY / HH:mm")}</b>
+          </Typography>
+          <Grid container sx={{ padding: 4 }} spacing={3}>
+            {files.map((file) => (
+              <Grid key={file._id} item xs={2.5}>
+                <FilePreview {...file} onDeleteFile={onDeleteFile} />
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      {!user && (
-        <Typography variant='h5' component='h5' sx={{margin: '0 auto', mt: 15}}>You need to log in to see pictures</Typography>
+        </Stack>
       )}
-    </Grid>
+      {!isAuthorized && (
+        <Typography
+          variant="h5"
+          component="h5"
+          sx={{ textAlign: "center", mt: 15 }}
+        >
+          You need to log in to see pictures
+        </Typography>
+      )}
+      {isAuthorized && files?.length === 0 && (
+        <Typography
+          variant="h5"
+          component="h5"
+          sx={{ textAlign: "center", mt: 15 }}
+        >
+          You have no files yet. Use "upload" button
+        </Typography>
+      )}
+    </>
   );
 }
 
 export default function Main() {
-  const [user, setUser] = useSessionStorage("currentUser", null);
+  const [userData, setUserData] = useSessionStorage("userData", null);
 
-  const [searchQuery, setSearchQuery] = useState('')
+  const userToken = userData?.token;
+
+  const [searchQuery, setSearchQuery] = useState("");
   const queryClient = useQueryClient();
 
-  const { data: filesResponse, isLoading } = useQuery("get-files", () =>
-    client.get("/files")
+  const config = userToken
+    ? {
+        headers: {
+          authorization: userToken,
+        },
+      }
+    : {};
+
+  const fetchQueryKey = ["get-files", userToken];
+
+  const { data: filesResponse, isLoading } = useQuery(fetchQueryKey, () =>
+    client.get("/files", config)
   );
 
   const { mutate: upload, isLoading: isUploading } = useMutation(
     "upload",
-    (fileData) => client.post("/upload", fileData),
+    (fileData) => client.post("/upload", fileData, config),
     {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["get-files"] });
+        queryClient.invalidateQueries({ queryKey: fetchQueryKey });
       },
     }
   );
 
+  const { mutate: loginUser, data: loginData } = useMutation(
+    "login",
+    (data) => client.post("/login", data),
+    {
+      onError: () => {
+        alert("Wrong username & password");
+      },
+    }
+  );
+
+  useEffect(() => {
+    if (loginData?.data) {
+      setUserData(loginData?.data);
+    }
+  }, [loginData]);
+
   const { mutate: deleteFile } = useMutation(
-    "upload",
-    (fileId) => client.delete("/file/" + fileId),
+    "delete",
+    (fileId) => client.delete("/file/" + fileId, config),
     {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["get-files"] });
+        queryClient.invalidateQueries({ queryKey: fetchQueryKey });
       },
     }
   );
@@ -219,7 +294,8 @@ export default function Main() {
 
   const files = (filesResponse?.data ?? []).filter(
     (file) =>
-      !searchQuery || file.name.toLowerCase().includes(searchQuery.toLowerCase())
+      !searchQuery ||
+      file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -228,11 +304,17 @@ export default function Main() {
         isUploading={isUploading}
         onFileUpload={handleFileUpload}
         onSearch={setSearchQuery}
-        user={user}
-        onLogout={() => setUser(null)}
+        userToken={userToken}
+        onLogout={() => setUserData(null)}
+        username={userData?.username}
       />
-      <FilesList loading={isLoading} files={files} user={user} onDeleteFile={deleteFile} />
-      <LoginModal open={!user} onLogin={(userData) => setUser(userData)} />
+      <FilesList
+        loading={isLoading}
+        files={files}
+        isAuthorized={userToken}
+        onDeleteFile={deleteFile}
+      />
+      <LoginModal open={!userToken} onLogin={loginUser} />
     </>
   );
 }

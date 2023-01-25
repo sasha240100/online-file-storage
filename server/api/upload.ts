@@ -2,6 +2,7 @@ import { File, s3 } from "../db";
 import { v4 as uuidv4 } from "uuid";
 
 import router from "./router";
+import {authMiddleware} from './middleware/auth';
 
 // actual function for uploading file
 async function uploadFile(file) {
@@ -19,8 +20,10 @@ async function uploadFile(file) {
   }; // returns the url location
 }
 
-router.post("/upload", async (req, res) => {
+router.post("/upload", authMiddleware, async (req, res) => {
   if (!req.files) return null
+
+  const userId = req.user?._id;
 
   const fileData = req.files.file;
   // the file when inserted from form-data comes in req.files.file
@@ -35,6 +38,7 @@ router.post("/upload", async (req, res) => {
     url: location,
     hash: uuidv4().split("-")[0],
     mimeType: fileData.mimetype,
+    userId,
   });
 
   await file.save();

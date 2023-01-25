@@ -20,11 +20,6 @@ export function LoginModal({ open, onClose, onLogin }) {
   const { control, handleSubmit } = useForm();
 
   const handleLogin = (values) => {
-    if (values.username !== 'admin' && values.password !== 'admin') {
-      alert('Wrong username & password!')
-      return
-    }
-
     onLogin(values);
   }
 
